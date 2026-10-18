@@ -5,7 +5,7 @@ LDFLAGS ?=
 
 TARGET := build/umami
 TEST_TARGET := build/umami_tests
-COMMON_SOURCES := src/Catalog.cpp src/CatalogRefresh.cpp src/InstalledState.cpp src/JsonSupport.cpp src/Logger.cpp src/PackageManager.cpp src/Paths.cpp src/ProcessRunner.cpp
+COMMON_SOURCES := src/Catalog.cpp src/CatalogRefresh.cpp src/InstalledState.cpp src/JsonSupport.cpp src/Logger.cpp src/PackageManager.cpp src/Paths.cpp src/ProcessRunner.cpp src/RecipeManager.cpp
 SOURCES := src/main.cpp $(COMMON_SOURCES)
 OBJECTS := $(SOURCES:src/%.cpp=build/%.o)
 TEST_OBJECTS := build/tests.o $(COMMON_SOURCES:src/%.cpp=build/%.o)

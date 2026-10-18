@@ -5,13 +5,19 @@
 #include "PackageManager.h"
 #include "Paths.h"
 #include "ProcessRunner.h"
+#include "RecipeManager.h"
 #include "Version.h"
 
+#include <algorithm>
+#include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
+#include <regex>
 #include <string>
+#include <termios.h>
+#include <unistd.h>
 #include <vector>
 
 namespace {
@@ -36,6 +42,8 @@ void PrintUsage(std::ostream& output) {
 		<< "  remove <id>              Remove an installed application\n"
 		<< "  update [<id>]            Update one or all tracked applications\n"
 		<< "  refresh                  Download the latest cookbook catalog\n"
+		<< "  recipe add <owner/repo>  Generate and review a cookbook recipe\n"
+		<< "  recipe publish <id>      Commit a reviewed recipe to the cookbook\n"
 		<< "  doctor                   Check tools, cache and state (planned)\n"
 		<< "\n"
 		<< "Common options:\n"
@@ -102,7 +110,8 @@ bool ParseCommandLine(int argumentCount, char** arguments, CommandLine& commandL
 
 bool ValidateCommand(const CommandLine& commandLine, const umami::Logger& logger, int& exitCode) {
 	if (commandLine.command != "list" && commandLine.command != "info" && commandLine.command != "install"
-		&& commandLine.command != "remove" && commandLine.command != "update" && commandLine.command != "refresh") {
+		&& commandLine.command != "remove" && commandLine.command != "update" && commandLine.command != "refresh"
+		&& commandLine.command != "recipe") {
 		logger.Error("command '" + commandLine.command + "' is not implemented in v" + umami::kVersion);
 		exitCode = 1;
 		return false;
@@ -134,6 +143,12 @@ bool ValidateCommand(const CommandLine& commandLine, const umami::Logger& logger
 	}
 	if (commandLine.command == "update" && commandLine.operands.size() > 1) {
 		logger.Error("usage: umami update [<id>]");
+		exitCode = 1;
+		return false;
+	}
+	if (commandLine.command == "recipe" && (commandLine.operands.size() != 2
+		|| (commandLine.operands.front() != "add" && commandLine.operands.front() != "publish"))) {
+		logger.Error("usage: umami recipe add <owner/repository> | recipe publish <id>");
 		exitCode = 1;
 		return false;
 	}
@@ -169,6 +184,58 @@ bool Confirm(const std::string& prompt, bool assumeYes) {
 	if (!std::getline(std::cin, response))
 		return false;
 	return response == "y" || response == "Y" || response == "yes" || response == "YES";
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+bool ReadGitHubToken(std::string& token, std::string& error) {
+	const char* environmentToken = std::getenv("UMAMI_GITHUB_TOKEN");
+	if (environmentToken != nullptr && environmentToken[0] != '\0') {
+		token = environmentToken;
+		return true;
+	}
+	if (!isatty(STDIN_FILENO)) {
+		error = "set UMAMI_GITHUB_TOKEN when publishing without an interactive terminal";
+		return false;
+	}
+	termios original = {};
+	if (tcgetattr(STDIN_FILENO, &original) != 0) {
+		error = "could not disable terminal echo for the GitHub token";
+		return false;
+	}
+	termios hidden = original;
+	hidden.c_lflag &= static_cast<tcflag_t>(~ECHO);
+	if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &hidden) != 0) {
+		error = "could not disable terminal echo for the GitHub token";
+		return false;
+	}
+	std::cout << "GitHub token (contents:write for sikosis/umami-cookbook): " << std::flush;
+	bool read = static_cast<bool>(std::getline(std::cin, token));
+	tcsetattr(STDIN_FILENO, TCSAFLUSH, &original);
+	std::cout << '\n';
+	if (!read || token.empty()) {
+		error = "a GitHub token is required to publish a recipe";
+		return false;
+	}
+	return true;
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+int PublishRecipeProposal(const std::filesystem::path& recipePath, const umami::AppPaths& paths,
+	const umami::ProcessRunner& runner, const umami::Logger& logger) {
+	std::string token;
+	std::string error;
+	if (!ReadGitHubToken(token, error)) {
+		logger.Error(error);
+		return 1;
+	}
+	if (!umami::PublishRecipe(recipePath, token, paths.cacheDirectory, runner, logger, error)) {
+		std::fill(token.begin(), token.end(), '\0');
+		logger.Error(error);
+		return 3;
+	}
+	std::fill(token.begin(), token.end(), '\0');
+	std::cout << "Recipe committed to https://github.com/sikosis/umami-cookbook\n";
+	return 0;
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
 
@@ -376,6 +443,43 @@ int main(int argumentCount, char** arguments) {
 		}
 		std::cout << "Catalog refreshed from " << umami::kDefaultCatalogUrl << '\n';
 		return 0;
+	}
+	if (commandLine.command == "recipe") {
+		umami::ProcessRunner runner;
+		const std::string& action = commandLine.operands[0];
+		const std::string& target = commandLine.operands[1];
+		std::filesystem::path recipePath;
+		umami::RecipeProposal proposal;
+		if (action == "add") {
+			if (!umami::GenerateRecipe(target, paths.recipeDirectory, paths.cacheDirectory,
+				runner, logger, recipePath, proposal, error)) {
+				logger.Error(error);
+				return 3;
+			}
+			std::cout << "Recipe proposal written to " << recipePath << "\n\n"
+				<< proposal.contents << '\n';
+			if (!Confirm("Commit this recipe to umami-cookbook now?", commandLine.assumeYes)) {
+				std::cout << "Review or edit it, then run: umami recipe publish " << proposal.app.id << '\n';
+				return 0;
+			}
+			return PublishRecipeProposal(recipePath, paths, runner, logger);
+		}
+
+		if (!std::regex_match(target, std::regex("^[a-z0-9][a-z0-9._-]*$"))) {
+			logger.Error("recipe id contains unsupported characters");
+			return 1;
+		}
+		recipePath = paths.recipeDirectory / (target + ".json");
+		if (!umami::LoadRecipe(recipePath, proposal, error)) {
+			logger.Error(error);
+			return 2;
+		}
+		std::cout << "Recipe to publish from " << recipePath << "\n\n" << proposal.contents << '\n';
+		if (!Confirm("Commit this recipe to umami-cookbook?", commandLine.assumeYes)) {
+			std::cout << "Cancelled\n";
+			return 0;
+		}
+		return PublishRecipeProposal(recipePath, paths, runner, logger);
 	}
 
 	std::error_code catalogStatus;

@@ -2,7 +2,7 @@
 
 `umami` is a small C++17 command-line package installer for Haiku. It will install, update and remove applications published as `.hpkg` release assets from a user-controlled catalog. Haiku's own `pkgman` remains responsible for package activation, dependency resolution and removal.
 
-The project is currently at **v0.09**. It can refresh and list the shared cookbook, resolve architecture-specific packages from GitHub releases, verify package metadata, install or update packages through `pkgman`, remove tracked packages, and persist installed state atomically.
+The project is currently at **v0.1**. It can refresh and list the shared cookbook, generate and publish reviewable recipe proposals, resolve architecture-specific packages from GitHub releases, verify package metadata, install or update packages through `pkgman`, remove tracked packages, and persist installed state atomically.
 
 ## Build
 
@@ -32,6 +32,7 @@ At startup, `umami` creates these directories when needed:
 
 - `~/config/settings/umami`
 - `~/config/cache/umami`
+- `~/config/settings/umami/recipes`
 
 See `DESIGN.md` for the full architecture and staged roadmap.
 
@@ -61,7 +62,23 @@ umami --catalog /path/to/catalog.json info hum
 
 The version 1 reader rejects malformed JSON, missing required fields, duplicate IDs, unsupported providers and unsupported channels. The installed-state file is optional until umami records its first successful installation.
 
-The repository's `catalog.example.json` is a bundled fallback copy. The cookbook contains the Haiku applications and terminal tools published by [sikosis](https://github.com/sikosis). Add, edit or delete an individual file under the cookbook's `recipes/` directory; its workflow validates the recipes and automatically regenerates `catalog.json` after the change reaches `main`. Catalogue membership prepares a project for release lookup but does not guarantee that an installable package has been published. At the time of the v0.09 catalogue update, `fatcat` provides a matching x86_64 `.hpkg`; the other entries require future release assets matching their declared patterns.
+The repository's `catalog.example.json` is a bundled fallback copy. The cookbook contains the Haiku applications and terminal tools published by [sikosis](https://github.com/sikosis). Add, edit or delete an individual file under the cookbook's `recipes/` directory; its workflow validates the recipes and automatically regenerates `catalog.json` after the change reaches `main`. Catalogue membership prepares a project for release lookup but does not guarantee that an installable package has been published. At the time of the v0.1 catalogue update, `fatcat` provides a matching x86_64 `.hpkg`; the other entries require future release assets matching their declared patterns.
+
+## Cookbook recipes
+
+Generate a proposal from public GitHub repository metadata:
+
+```sh
+./build/umami recipe add owner/repository
+```
+
+Umami writes the proposal to `~/config/settings/umami/recipes/<id>.json`, prints the complete JSON for review and asks whether to commit it immediately. Declining leaves the proposal available for editing. Publish it later with:
+
+```sh
+./build/umami recipe publish <id>
+```
+
+Publishing asks for a fine-grained GitHub token with **Contents: read and write** access to `sikosis/umami-cookbook`. Input is hidden; the token is passed through a temporary mode-0600 authentication file which is removed after the request during normal operation. It can instead be supplied for non-interactive use as `UMAMI_GITHUB_TOKEN`. The generated asset pattern and package name are informed defaults and should be checked before publishing.
 
 ## Package operations
 

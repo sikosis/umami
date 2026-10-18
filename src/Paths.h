@@ -9,6 +9,7 @@ namespace umami {
 struct AppPaths {
 	std::filesystem::path settingsDirectory;
 	std::filesystem::path cacheDirectory;
+	std::filesystem::path recipeDirectory;
 	std::filesystem::path catalogFile;
 	std::filesystem::path stateFile;
 

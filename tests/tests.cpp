@@ -4,6 +4,7 @@
 #include "PackageManager.h"
 #include "Paths.h"
 #include "ProcessRunner.h"
+#include "RecipeManager.h"
 
 #include <filesystem>
 #include <fstream>
@@ -64,11 +65,13 @@ void TestPaths() {
 	umami::AppPaths paths = umami::AppPaths::FromHome(home);
 	Check(paths.catalogFile == home / "config/settings/umami/catalog.json", "catalog path should be under settings");
 	Check(paths.stateFile == home / "config/settings/umami/installed.json", "state path should be under settings");
+	Check(paths.recipeDirectory == home / "config/settings/umami/recipes", "recipe path should be under settings");
 
 	std::string error;
 	Check(paths.EnsureDirectories(error), "application directories should be created: " + error);
 	Check(std::filesystem::is_directory(paths.settingsDirectory), "settings directory should exist");
 	Check(std::filesystem::is_directory(paths.cacheDirectory), "cache directory should exist");
+	Check(std::filesystem::is_directory(paths.recipeDirectory), "recipe directory should exist");
 	std::error_code status;
 	std::filesystem::remove_all(home, status);
 	Check(!status, "test directory should be removable");
@@ -257,6 +260,44 @@ void TestStateWriting() {
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
 
+void TestRecipeLoading() {
+	std::filesystem::path directory = std::filesystem::temp_directory_path()
+		/ ("umami-recipe-tests-" + std::to_string(static_cast<long long>(getpid())));
+	std::error_code status;
+	std::filesystem::create_directories(directory, status);
+	Check(!status, "recipe test directory should be created");
+	std::filesystem::path recipePath = directory / "example.json";
+	const std::string recipeJson = R"({
+  "$schema": "../schema/recipe-v1.schema.json",
+  "version": 1,
+  "app": {
+    "id": "example",
+    "name": "Example",
+    "description": "An example Haiku application.",
+    "provider": "github",
+    "repo": "someone/Example",
+    "asset_pattern": "^example-.*-{arch}\\.hpkg$",
+    "package_name": "example",
+    "channel": "stable"
+  }
+})";
+	Check(WriteText(recipePath, recipeJson), "recipe fixture should be written");
+	umami::RecipeProposal proposal;
+	std::string error;
+	Check(umami::LoadRecipe(recipePath, proposal, error), "valid recipe should load: " + error);
+	Check(proposal.app.id == "example", "recipe id should be parsed");
+	Check(proposal.app.repository == "someone/Example", "recipe repository should be parsed");
+	Check(proposal.contents == recipeJson, "reviewed recipe contents should be preserved exactly");
+
+	Check(WriteText(recipePath, "{\"version\":1,\"app\":{\"id\":\"broken\"}}"),
+		"invalid recipe fixture should be written");
+	Check(!umami::LoadRecipe(recipePath, proposal, error), "incomplete recipe should be rejected");
+
+	std::filesystem::remove_all(directory, status);
+	Check(!status, "recipe test directory should be removable");
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
 }
 
 int main(int argumentCount, char** arguments) {
@@ -271,6 +312,7 @@ int main(int argumentCount, char** arguments) {
 	TestDownloadedCatalogInstallation();
 	TestReleaseAndPackageParsing();
 	TestStateWriting();
+	TestRecipeLoading();
 	if (sFailures != 0) {
 		std::cerr << sFailures << " test(s) failed\n";
 		return 1;

@@ -129,6 +129,8 @@ The CLI is a thin layer over the core library. Every command that changes the sy
 | `umami remove <id>` | Uninstall the package and clear its state entry |
 | `umami update [<id>]` | Update one app, or every installed app with a newer release |
 | `umami refresh` | Download, validate and atomically install the generated umami cookbook catalogue |
+| `umami recipe add <owner/repo>` | Generate, display and save a recipe proposal from GitHub metadata |
+| `umami recipe publish <id>` | Validate and commit a reviewed proposal to the cookbook |
 | `umami doctor` | Check state against installed packages, cache and tools |
 
 **Common options**

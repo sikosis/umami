@@ -21,6 +21,7 @@ AppPaths AppPaths::FromHome(const std::filesystem::path& homeDirectory) {
 	AppPaths paths;
 	paths.settingsDirectory = homeDirectory / "config" / "settings" / "umami";
 	paths.cacheDirectory = homeDirectory / "config" / "cache" / "umami";
+	paths.recipeDirectory = paths.settingsDirectory / "recipes";
 	paths.catalogFile = paths.settingsDirectory / "catalog.json";
 	paths.stateFile = paths.settingsDirectory / "installed.json";
 	return paths;
@@ -38,6 +39,12 @@ bool AppPaths::EnsureDirectories(std::string& error) const {
 	std::filesystem::create_directories(cacheDirectory, status);
 	if (status) {
 		error = "could not create cache directory '" + cacheDirectory.string() + "': " + status.message();
+		return false;
+	}
+
+	std::filesystem::create_directories(recipeDirectory, status);
+	if (status) {
+		error = "could not create recipe directory '" + recipeDirectory.string() + "': " + status.message();
 		return false;
 	}
 	return true;
