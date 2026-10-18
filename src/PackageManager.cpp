@@ -175,8 +175,17 @@ bool ResolveRelease(const CatalogEntry& entry, const std::string& requestedTag,
 	else
 		url += "/latest";
 	std::filesystem::path responseFile = cacheDirectory / (entry.id + "-release.json");
-	if (!RunCurlToFile(url, responseFile, runner, logger, error))
+	if (!RunCurlToFile(url, responseFile, runner, logger, error)) {
+		if (error.find("404") != std::string::npos) {
+			if (!requestedTag.empty())
+				error = "repository '" + entry.repository + "' has no release tagged '" + requestedTag + "'";
+			else if (findPrerelease)
+				error = "repository '" + entry.repository + "' has no published prerelease";
+			else
+				error = "repository '" + entry.repository + "' has no published stable release";
+		}
 		return false;
+	}
 	return ParseReleaseFile(responseFile, entry, architecture, findPrerelease, release, error);
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
@@ -230,7 +239,7 @@ bool ParsePackageInfo(const std::string& output, PackageDetails& details, std::s
 			details.architecture = value;
 	}
 	if (details.name.empty() || details.version.empty() || details.architecture.empty()) {
-		error = "package info did not report name, version and architecture";
+		error = "package metadata did not report name, version and architecture";
 		return false;
 	}
 	return true;
@@ -239,11 +248,17 @@ bool ParsePackageInfo(const std::string& output, PackageDetails& details, std::s
 
 bool InspectPackage(const std::filesystem::path& packageFile, const ProcessRunner& runner,
 	const Logger& logger, PackageDetails& details, std::string& error) {
-	std::vector<std::string> arguments = {"package", "info", packageFile.string()};
+	std::vector<std::string> arguments = {"package", "list", "-i", packageFile.string()};
 	std::string output;
 	if (!RunPackageCommand(arguments, runner, logger, output, error))
 		return false;
-	return ParsePackageInfo(output, details, error);
+	if (!ParsePackageInfo(output, details, error)) {
+		std::string detail = Trim(output);
+		if (!detail.empty())
+			error += ": " + detail;
+		return false;
+	}
+	return true;
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
 

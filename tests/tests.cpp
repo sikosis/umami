@@ -212,7 +212,7 @@ void TestReleaseAndPackageParsing() {
 		"missing architecture should be rejected");
 
 	umami::PackageDetails details;
-	Check(umami::ParsePackageInfo("name: example\nversion: 1.2.3-1\narchitecture: x86_64\n",
+	Check(umami::ParsePackageInfo("package-attributes:\n\tname: example\n\tarchitecture: x86_64\n\tversion: 1.2.3-1\n",
 		details, error), "package metadata should be parsed: " + error);
 	Check(details.name == "example", "package name should be parsed");
 	Check(details.version == "1.2.3-1", "package version should be parsed");

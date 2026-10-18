@@ -38,7 +38,7 @@ On Haiku, `/boot/system` is a read-only view built by packagefs from the active 
 | `pkgman update <name>` | Updating from enabled repositories (not used for catalog updates) |
 | `pkgman search -i -a <package>` | Confirming that an installed package is active |
 | `pkgman resolve-dependencies` | Optional pre-check of unmet requirements |
-| `package info <file>` | Sanity-checking a downloaded file before installing |
+| `package list -i <file>` | Reading and sanity-checking downloaded package metadata |
 | `getarch` | Finding the machine's primary architecture |
 
 Package filenames carry the architecture (for example `x86_64`, `x86_gcc2`), so the tool must pick the asset that matches the machine.
@@ -147,7 +147,7 @@ The CLI is a thin layer over the core library. Every command that changes the sy
 | 1 | Usage error |
 | 2 | Catalog or state file problem |
 | 3 | Network or provider failure |
-| 4 | Verification failed (checksum, architecture or package info) |
+| 4 | Verification failed (checksum, architecture or package metadata) |
 | 5 | `pkgman` failed |
 
 ## Core flows
@@ -159,7 +159,7 @@ The CLI is a thin layer over the core library. Every command that changes the sy
 3. Pick the asset whose name matches `asset_pattern` with `{arch}` filled in. If none matches, stop and list the architectures that are available.
 4. Download to the cache directory (`~/config/cache/umami`) under a temporary name, then rename on completion.
 5. If a checksum asset exists, download it and compare SHA-256. A mismatch deletes the file and exits with code 4.
-6. Run `package info <file>` to confirm it is a valid package and that its name matches `package_name`.
+6. Run `package list -i <file>` to confirm its name and architecture match the catalogue entry and machine.
 7. Run `pkgman install -H -y <file>` and report its output. Dependencies come from the enabled repositories.
 8. Confirm the package is now active (`pkgman search -i -a <package_name>`), then write the state entry.
 
@@ -195,7 +195,7 @@ Each stage ends at a gate: do not start the next stage until the gate holds on a
 | --- | --- | --- |
 | 0 Setup | Project skeleton, plain Makefile, process-runner wrapper (`posix_spawn`), logging, settings directory handling | About 1 day |
 | 1 MVP | Catalog and state parsing, GitHub release provider, download, `pkgman install`, `remove`, `list`, `info` (implemented; Haiku package-operation verification pending) | 2 to 3 days |
-| 2 Trust | Architecture matching, SHA-256 verification, `package info` check, `update`, `doctor`, state reconciliation, lock file | 3 to 4 days |
+| 2 Trust | Architecture matching, SHA-256 verification, `package list -i` check, `update`, `doctor`, state reconciliation, lock file | 3 to 4 days |
 | 3 Reach | GitLab, Gitea and direct-URL providers, response caching with ETags, retries, prerelease channel, `--system`, Haiku version comparison | 4 to 5 days |
 | 4 Polish | Remote catalogue refinements, tests, user docs, packaging the tool as its own `.hpkg` | 3 to 5 days |
 | 5 Source mode (optional) | Recipe format, build runner, staging and layout map, `.PackageInfo` generation, `package create` | 2 to 4 weeks |
@@ -243,7 +243,7 @@ The biggest practical risk is supply: a catalog entry only works if its author p
 | --- | --- | --- |
 | Few projects publish `.hpkg` release assets | Catalog is small | Allow direct-URL entries; add source-build mode later |
 | Package is malicious or tampered with | Arbitrary code runs as the user | HTTPS only, checksums, show source and version before install, catalog is user-controlled |
-| Wrong architecture picked | Install fails or package is rejected | Match with `getarch`, verify with `package info`, list available architectures on failure |
+| Wrong architecture picked | Install fails or package is rejected | Match with `getarch`, verify with `package list -i`, list available architectures on failure |
 | Provider API rate limits (unauthenticated GitHub) | `list` and `update` fail on large catalogs | Cache responses with ETags, allow an optional token, check lazily |
 | Local `pkgman` behaviour changes between Haiku releases | Install step breaks | Isolate it behind one install function with a copy-to-packages fallback; `umami doctor` probes it |
 | State file out of sync with the system | Wrong status shown | Treat Haiku's package list as the truth and reconcile on `list`, `remove` and `doctor` |
