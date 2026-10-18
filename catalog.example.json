@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "apps": [
+    {
+      "id": "hum",
+      "name": "hum",
+      "description": "Friendly terminal tools for styling text, prompts, pickers, tables and progress indicators on Haiku.",
+      "provider": "github",
+      "repo": "sikosis/hum",
+      "asset_pattern": "^hum-.*-{arch}\\.hpkg$",
+      "package_name": "hum",
+      "channel": "stable"
+    },
+    {
+      "id": "calendar",
+      "name": "Calendar",
+      "description": "A native calendar application for Haiku.",
+      "provider": "github",
+      "repo": "sikosis/Calendar",
+      "asset_pattern": "^calendar-.*-{arch}\\.hpkg$",
+      "package_name": "calendar",
+      "channel": "stable"
+    },
+    {
+      "id": "fatcat",
+      "name": "Fat Cat Pomodoro",
+      "description": "A cosy Pomodoro timer that fills your breaks with collectible animated cats.",
+      "provider": "github",
+      "repo": "sikosis/fatcat",
+      "asset_pattern": "^fatcat-.*-{arch}\\.hpkg$",
+      "package_name": "fatcat",
+      "channel": "stable"
+    },
+    {
+      "id": "ichi",
+      "name": "Ichi",
+      "description": "A terminal-based one-card game.",
+      "provider": "github",
+      "repo": "sikosis/ichi",
+      "asset_pattern": "^ichi-.*-{arch}\\.hpkg$",
+      "package_name": "ichi",
+      "channel": "stable"
+    },
+    {
+      "id": "kairo",
+      "name": "Kairo",
+      "description": "An AI harness application for Haiku.",
+      "provider": "github",
+      "repo": "sikosis/kairo",
+      "asset_pattern": "^kairo-.*-{arch}\\.hpkg$",
+      "package_name": "kairo",
+      "channel": "stable"
+    },
+    {
+      "id": "kiru",
+      "name": "Kiru",
+      "description": "An easy-to-use, keyboard-first video chopping tool for Haiku.",
+      "provider": "github",
+      "repo": "sikosis/kiru",
+      "asset_pattern": "^kiru-.*-{arch}\\.hpkg$",
+      "package_name": "kiru",
+      "channel": "stable"
+    },
+    {
+      "id": "kizuku",
+      "name": "Kizuku",
+      "description": "A tool for creating interactive Bash experiences powered by hum.",
+      "provider": "github",
+      "repo": "sikosis/kizuku",
+      "asset_pattern": "^kizuku-.*-{arch}\\.hpkg$",
+      "package_name": "kizuku",
+      "channel": "stable"
+    },
+    {
+      "id": "streamradio",
+      "name": "StreamRadio",
+      "description": "A native Haiku application for finding and listening to internet radio stations.",
+      "provider": "github",
+      "repo": "sikosis/StreamRadio",
+      "asset_pattern": "^streamradio-.*-{arch}\\.hpkg$",
+      "package_name": "streamradio",
+      "channel": "stable"
+    },
+    {
+      "id": "subdue",
+      "name": "Subdue",
+      "description": "Schedule-based application termination and audio muting for Haiku and other platforms.",
+      "provider": "github",
+      "repo": "sikosis/Subdue",
+      "asset_pattern": "^subdue-.*-{arch}\\.hpkg$",
+      "package_name": "subdue",
+      "channel": "stable"
+    },
+    {
+      "id": "timecop",
+      "name": "TimeCop",
+      "description": "A utility for viewing BeOS and Haiku uptime statistics.",
+      "provider": "github",
+      "repo": "sikosis/TimeCop",
+      "asset_pattern": "^timecop-.*-{arch}\\.hpkg$",
+      "package_name": "timecop",
+      "channel": "stable"
+    },
+    {
+      "id": "ttfx-haiku",
+      "name": "ttfx-haiku",
+      "description": "A dependency-free C++17 terminal animation engine for Haiku.",
+      "provider": "github",
+      "repo": "sikosis/ttfx-haiku",
+      "asset_pattern": "^ttfx-.*-{arch}\\.hpkg$",
+      "package_name": "ttfx",
+      "channel": "stable"
+    },
+    {
+      "id": "vhs",
+      "name": "VHS",
+      "description": "Turns tape scripts into terminal recordings in GIF, MP4, WebM, PNG or text formats on Haiku.",
+      "provider": "github",
+      "repo": "sikosis/vhs",
+      "asset_pattern": "^vhs-.*-{arch}\\.hpkg$",
+      "package_name": "vhs",
+      "channel": "stable"
+    }
+  ]
+}
