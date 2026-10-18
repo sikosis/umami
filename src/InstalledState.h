@@ -20,6 +20,9 @@ struct InstalledEntry {
 class InstalledState {
 public:
 	bool Load(const std::filesystem::path& path, std::string& error);
+	bool Save(const std::filesystem::path& path, std::string& error) const;
+	void Set(const std::string& id, const InstalledEntry& entry);
+	bool Remove(const std::string& id);
 	const InstalledEntry* Find(const std::string& id) const;
 	const std::map<std::string, InstalledEntry>& Entries() const;
 

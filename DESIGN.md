@@ -36,7 +36,7 @@ On Haiku, `/boot/system` is a read-only view built by packagefs from the active 
 | `pkgman install <file or name>` | Installing a downloaded package and its dependencies |
 | `pkgman uninstall <name>` | Removing a package |
 | `pkgman update <name>` | Updating from enabled repositories (not used for catalog updates) |
-| `pkgman info <package>` | Reading name, version and architecture metadata |
+| `pkgman search -i -a <package>` | Confirming that an installed package is active |
 | `pkgman resolve-dependencies` | Optional pre-check of unmet requirements |
 | `package info <file>` | Sanity-checking a downloaded file before installing |
 | `getarch` | Finding the machine's primary architecture |
@@ -160,13 +160,13 @@ The CLI is a thin layer over the core library. Every command that changes the sy
 4. Download to the cache directory (`~/config/cache/umami`) under a temporary name, then rename on completion.
 5. If a checksum asset exists, download it and compare SHA-256. A mismatch deletes the file and exits with code 4.
 6. Run `package info <file>` to confirm it is a valid package and that its name matches `package_name`.
-7. Run `pkgman install <file>` and stream its output. Dependencies come from the enabled repositories.
-8. Confirm the package is now active (`pkgman info <package_name>`), then write the state entry.
+7. Run `pkgman install -H -y <file>` and report its output. Dependencies come from the enabled repositories.
+8. Confirm the package is now active (`pkgman search -i -a <package_name>`), then write the state entry.
 
 **Remove**
 
 1. Look up the state entry. If the app is not tracked but a package of that name is installed, offer to remove it anyway.
-2. Run `pkgman uninstall <package_name>`.
+2. Run `pkgman uninstall -H -y <package_name>`.
 3. Remove the state entry and optionally the cached `.hpkg` (`--purge-cache`).
 4. Settings and data in the user's `~/config/settings` are left in place and the tool says so.
 
@@ -194,7 +194,7 @@ Each stage ends at a gate: do not start the next stage until the gate holds on a
 | Stage | Deliverables | Rough effort |
 | --- | --- | --- |
 | 0 Setup | Project skeleton, plain Makefile, process-runner wrapper (`posix_spawn`), logging, settings directory handling | About 1 day |
-| 1 MVP | Catalog and state parsing, GitHub release provider, download, `pkgman install`, `remove`, `list`, `info` | 2 to 3 days |
+| 1 MVP | Catalog and state parsing, GitHub release provider, download, `pkgman install`, `remove`, `list`, `info` (implemented; Haiku package-operation verification pending) | 2 to 3 days |
 | 2 Trust | Architecture matching, SHA-256 verification, `package info` check, `update`, `doctor`, state reconciliation, lock file | 3 to 4 days |
 | 3 Reach | GitLab, Gitea and direct-URL providers, response caching with ETags, retries, prerelease channel, `--system`, Haiku version comparison | 4 to 5 days |
 | 4 Polish | Remote catalogue refinements, tests, user docs, packaging the tool as its own `.hpkg` | 3 to 5 days |

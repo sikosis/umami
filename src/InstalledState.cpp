@@ -2,6 +2,36 @@
 
 #include "JsonSupport.h"
 
+#include <fstream>
+#include <iomanip>
+#include <sstream>
+
+namespace {
+
+std::string EscapeJson(const std::string& value) {
+	std::ostringstream output;
+	for (unsigned char character : value) {
+		switch (character) {
+			case '"': output << "\\\""; break;
+			case '\\': output << "\\\\"; break;
+			case '\b': output << "\\b"; break;
+			case '\f': output << "\\f"; break;
+			case '\n': output << "\\n"; break;
+			case '\r': output << "\\r"; break;
+			case '\t': output << "\\t"; break;
+			default:
+				if (character < 0x20)
+					output << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(character);
+				else
+					output << static_cast<char>(character);
+		}
+	}
+	return output.str();
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+}
+
 namespace umami {
 
 bool InstalledState::Load(const std::filesystem::path& path, std::string& error) {
@@ -69,6 +99,62 @@ bool InstalledState::Load(const std::filesystem::path& path, std::string& error)
 	} while (false);
 
 	return success;
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+bool InstalledState::Save(const std::filesystem::path& path, std::string& error) const {
+	error.clear();
+	std::filesystem::path temporaryPath = path;
+	temporaryPath += ".tmp";
+	std::ofstream output(temporaryPath, std::ios::trunc);
+	if (!output) {
+		error = "could not write '" + temporaryPath.string() + "'";
+		return false;
+	}
+
+	output << "{\n  \"version\": 1,\n  \"installed\": {";
+	bool first = true;
+	for (const auto& stateEntry : fEntries) {
+		if (!first)
+			output << ',';
+		first = false;
+		const InstalledEntry& entry = stateEntry.second;
+		output << "\n    \"" << EscapeJson(stateEntry.first) << "\": {\n"
+			<< "      \"package_name\": \"" << EscapeJson(entry.packageName) << "\",\n"
+			<< "      \"package_version\": \"" << EscapeJson(entry.packageVersion) << "\",\n"
+			<< "      \"release_tag\": \"" << EscapeJson(entry.releaseTag) << "\",\n"
+			<< "      \"asset\": \"" << EscapeJson(entry.asset) << "\",\n"
+			<< "      \"sha256\": \"" << EscapeJson(entry.sha256) << "\",\n"
+			<< "      \"scope\": \"" << EscapeJson(entry.scope) << "\",\n"
+			<< "      \"installed_at\": \"" << EscapeJson(entry.installedAt) << "\"\n"
+			<< "    }";
+	}
+	if (!fEntries.empty())
+		output << '\n';
+	output << "  }\n}\n";
+	output.close();
+	if (!output) {
+		error = "could not finish writing '" + temporaryPath.string() + "'";
+		return false;
+	}
+
+	std::error_code status;
+	std::filesystem::rename(temporaryPath, path, status);
+	if (status) {
+		error = "could not replace '" + path.string() + "': " + status.message();
+		return false;
+	}
+	return true;
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+void InstalledState::Set(const std::string& id, const InstalledEntry& entry) {
+	fEntries[id] = entry;
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+bool InstalledState::Remove(const std::string& id) {
+	return fEntries.erase(id) != 0;
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
 

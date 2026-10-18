@@ -2,10 +2,12 @@
 #include "CatalogRefresh.h"
 #include "InstalledState.h"
 #include "Logger.h"
+#include "PackageManager.h"
 #include "Paths.h"
 #include "ProcessRunner.h"
 #include "Version.h"
 
+#include <ctime>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
@@ -17,6 +19,7 @@ namespace {
 struct CommandLine {
 	bool verbose = false;
 	bool installedOnly = false;
+	bool assumeYes = false;
 	std::filesystem::path catalog;
 	std::string command;
 	std::vector<std::string> operands;
@@ -29,13 +32,14 @@ void PrintUsage(std::ostream& output) {
 		<< "Commands:\n"
 		<< "  list [--installed]       List catalog applications\n"
 		<< "  info <id>                Show application details\n"
-		<< "  install <id>[@tag]       Install an application (planned)\n"
-		<< "  remove <id>              Remove an application (planned)\n"
-		<< "  update [<id>]            Update installed applications (planned)\n"
+		<< "  install <id>[@tag]       Install an application\n"
+		<< "  remove <id>              Remove an installed application\n"
+		<< "  update [<id>]            Update one or all tracked applications\n"
 		<< "  refresh                  Download the latest cookbook catalog\n"
 		<< "  doctor                   Check tools, cache and state (planned)\n"
 		<< "\n"
 		<< "Common options:\n"
+		<< "  -y                       Answer yes to confirmation prompts\n"
 		<< "  --catalog <file>         Use an alternative catalog\n"
 		<< "  -v                       Print diagnostic information\n"
 		<< "  --help                   Show this help\n"
@@ -58,6 +62,10 @@ bool ParseCommandLine(int argumentCount, char** arguments, CommandLine& commandL
 		}
 		if (argument == "-v") {
 			commandLine.verbose = true;
+			continue;
+		}
+		if (argument == "-y") {
+			commandLine.assumeYes = true;
 			continue;
 		}
 		if (argument == "--catalog") {
@@ -93,7 +101,8 @@ bool ParseCommandLine(int argumentCount, char** arguments, CommandLine& commandL
 //---------------------------------------------------------------------------------------------------------------------------------//
 
 bool ValidateCommand(const CommandLine& commandLine, const umami::Logger& logger, int& exitCode) {
-	if (commandLine.command != "list" && commandLine.command != "info" && commandLine.command != "refresh") {
+	if (commandLine.command != "list" && commandLine.command != "info" && commandLine.command != "install"
+		&& commandLine.command != "remove" && commandLine.command != "update" && commandLine.command != "refresh") {
 		logger.Error("command '" + commandLine.command + "' is not implemented in v" + umami::kVersion);
 		exitCode = 1;
 		return false;
@@ -113,6 +122,21 @@ bool ValidateCommand(const CommandLine& commandLine, const umami::Logger& logger
 		exitCode = 1;
 		return false;
 	}
+	if (commandLine.command == "install" && commandLine.operands.size() != 1) {
+		logger.Error("usage: umami install <id>[@tag]");
+		exitCode = 1;
+		return false;
+	}
+	if (commandLine.command == "remove" && commandLine.operands.size() != 1) {
+		logger.Error("usage: umami remove <id>");
+		exitCode = 1;
+		return false;
+	}
+	if (commandLine.command == "update" && commandLine.operands.size() > 1) {
+		logger.Error("usage: umami update [<id>]");
+		exitCode = 1;
+		return false;
+	}
 	if (commandLine.command != "list" && commandLine.installedOnly) {
 		logger.Error("--installed can only be used with list");
 		exitCode = 1;
@@ -122,7 +146,9 @@ bool ValidateCommand(const CommandLine& commandLine, const umami::Logger& logger
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
 
-int ListApplications(const umami::Catalog& catalog, const umami::InstalledState& state, bool installedOnly) {
+int ListApplications(const umami::Catalog& catalog, const umami::InstalledState& state, bool installedOnly,
+	const std::string& catalogSource) {
+	std::cout << "Catalog: " << catalogSource << "\n\n";
 	std::cout << std::left << std::setw(20) << "ID" << std::setw(32) << "NAME" << "VERSION\n";
 	for (const umami::CatalogEntry& entry : catalog.Entries()) {
 		const umami::InstalledEntry* installed = state.Find(entry.id);
@@ -131,6 +157,161 @@ int ListApplications(const umami::Catalog& catalog, const umami::InstalledState&
 		std::cout << std::left << std::setw(20) << entry.id << std::setw(32) << entry.name
 			<< (installed == nullptr ? "-" : installed->packageVersion) << '\n';
 	}
+	return 0;
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+bool Confirm(const std::string& prompt, bool assumeYes) {
+	if (assumeYes)
+		return true;
+	std::cout << prompt << " [y/N] " << std::flush;
+	std::string response;
+	if (!std::getline(std::cin, response))
+		return false;
+	return response == "y" || response == "Y" || response == "yes" || response == "YES";
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+std::string CurrentTimestamp() {
+	std::time_t currentTime = std::time(nullptr);
+	std::tm value = {};
+	if (gmtime_r(&currentTime, &value) == nullptr)
+		return "unknown";
+	char buffer[32];
+	if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%dT%H:%M:%SZ", &value) == 0)
+		return "unknown";
+	return buffer;
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+bool SplitInstallTarget(const std::string& target, std::string& identifier, std::string& tag) {
+	std::size_t separator = target.find('@');
+	identifier = target.substr(0, separator);
+	tag = separator == std::string::npos ? "" : target.substr(separator + 1);
+	return !identifier.empty() && (separator == std::string::npos || !tag.empty());
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+int InstallApplication(const umami::CatalogEntry& entry, const std::string& requestedTag,
+	const umami::AppPaths& paths, umami::InstalledState& state, const umami::ProcessRunner& runner,
+	const umami::Logger& logger, bool assumeYes, bool updateOnly) {
+	std::string error;
+	const umami::InstalledEntry* existing = state.Find(entry.id);
+	if (updateOnly && existing == nullptr) {
+		logger.Error("'" + entry.id + "' is not tracked as installed");
+		return 1;
+	}
+	std::string architecture;
+	if (!umami::DetectArchitecture(runner, logger, architecture, error)) {
+		logger.Error(error);
+		return 4;
+	}
+
+	umami::ReleaseInfo release;
+	if (!umami::ResolveRelease(entry, requestedTag, architecture, paths.cacheDirectory,
+		runner, logger, release, error)) {
+		logger.Error(error);
+		return 3;
+	}
+	if (existing != nullptr && existing->releaseTag == release.tag) {
+		std::cout << entry.name << " is already at " << release.tag << '\n';
+		return 0;
+	}
+	std::filesystem::path packageFile;
+	if (!umami::DownloadReleaseAsset(release.asset, paths.cacheDirectory, runner, logger, packageFile, error)) {
+		logger.Error(error);
+		return 3;
+	}
+	umami::PackageDetails details;
+	if (!umami::InspectPackage(packageFile, runner, logger, details, error)) {
+		logger.Error(error);
+		return 4;
+	}
+	if (details.name != entry.packageName) {
+		logger.Error("package name '" + details.name + "' does not match expected name '" + entry.packageName + "'");
+		return 4;
+	}
+	if (details.architecture != architecture && details.architecture != "any") {
+		logger.Error("package architecture '" + details.architecture + "' does not match '" + architecture + "'");
+		return 4;
+	}
+	std::string checksum;
+	if (!umami::ComputeSha256(packageFile, runner, logger, checksum, error)) {
+		logger.Error(error);
+		return 4;
+	}
+
+	std::cout << (existing == nullptr ? "Install " : "Update ") << entry.name << " to "
+		<< details.version << " from " << release.tag << "\n"
+		<< "Package: " << packageFile << '\n';
+	if (!Confirm("Continue?", assumeYes)) {
+		std::cout << "Cancelled\n";
+		return 0;
+	}
+	std::vector<std::string> arguments = {"pkgman", "install", "-H", "-y", packageFile.string()};
+	std::string output;
+	if (!umami::RunPackageCommand(arguments, runner, logger, output, error)) {
+		logger.Error(error);
+		return 5;
+	}
+	if (!output.empty())
+		std::cout << output;
+	bool packageInstalled = false;
+	if (!umami::IsPackageInstalled(entry.packageName, runner, logger, packageInstalled, error)) {
+		logger.Error("package installation could not be confirmed: " + error);
+		return 5;
+	}
+	if (!packageInstalled) {
+		logger.Error("pkgman completed but package '" + entry.packageName + "' is not active");
+		return 5;
+	}
+
+	umami::InstalledEntry installed;
+	installed.packageName = entry.packageName;
+	installed.packageVersion = details.version;
+	installed.releaseTag = release.tag;
+	installed.asset = release.asset.name;
+	installed.sha256 = checksum;
+	installed.scope = "user";
+	installed.installedAt = CurrentTimestamp();
+	state.Set(entry.id, installed);
+	if (!state.Save(paths.stateFile, error)) {
+		logger.Error("package was installed but state could not be saved: " + error);
+		return 2;
+	}
+	std::cout << entry.name << " " << details.version << " installed\n";
+	return 0;
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+int RemoveApplication(const std::string& identifier, const umami::AppPaths& paths,
+	umami::InstalledState& state, const umami::ProcessRunner& runner, const umami::Logger& logger,
+	bool assumeYes) {
+	const umami::InstalledEntry* installed = state.Find(identifier);
+	if (installed == nullptr) {
+		logger.Error("'" + identifier + "' is not tracked as installed");
+		return 1;
+	}
+	std::string packageName = installed->packageName;
+	if (!Confirm("Remove " + packageName + "?", assumeYes)) {
+		std::cout << "Cancelled\n";
+		return 0;
+	}
+	std::vector<std::string> arguments = {"pkgman", "uninstall", "-H", "-y", packageName};
+	std::string output;
+	std::string error;
+	if (!umami::RunPackageCommand(arguments, runner, logger, output, error)) {
+		logger.Error(error);
+		return 5;
+	}
+	if (!output.empty())
+		std::cout << output;
+	state.Remove(identifier);
+	if (!state.Save(paths.stateFile, error)) {
+		logger.Error("package was removed but state could not be saved: " + error);
+		return 2;
+	}
+	std::cout << packageName << " removed; its settings and user data were left in place\n";
 	return 0;
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
@@ -220,9 +401,54 @@ int main(int argumentCount, char** arguments) {
 		return 2;
 	}
 
+	umami::ProcessRunner runner;
 	if (commandLine.command == "list") {
-		return ListApplications(catalog, state, commandLine.installedOnly);
+		std::string catalogSource = commandLine.catalog.empty()
+			? umami::kDefaultCatalogUrl : commandLine.catalog.string();
+		return ListApplications(catalog, state, commandLine.installedOnly, catalogSource);
 	}
-	return ShowApplicationInfo(catalog, state, commandLine.operands.front(), logger);
+	if (commandLine.command == "info")
+		return ShowApplicationInfo(catalog, state, commandLine.operands.front(), logger);
+	if (commandLine.command == "remove")
+		return RemoveApplication(commandLine.operands.front(), paths, state, runner, logger, commandLine.assumeYes);
+	if (commandLine.command == "install") {
+		std::string identifier;
+		std::string tag;
+		if (!SplitInstallTarget(commandLine.operands.front(), identifier, tag)) {
+			logger.Error("usage: umami install <id>[@tag]");
+			return 1;
+		}
+		const umami::CatalogEntry* entry = catalog.Find(identifier);
+		if (entry == nullptr) {
+			logger.Error("catalog has no application named '" + identifier + "'");
+			return 1;
+		}
+		return InstallApplication(*entry, tag, paths, state, runner, logger, commandLine.assumeYes, false);
+	}
+
+	if (!commandLine.operands.empty()) {
+		const std::string& identifier = commandLine.operands.front();
+		const umami::CatalogEntry* entry = catalog.Find(identifier);
+		if (entry == nullptr) {
+			logger.Error("catalog has no application named '" + identifier + "'");
+			return 1;
+		}
+		return InstallApplication(*entry, "", paths, state, runner, logger, commandLine.assumeYes, true);
+	}
+	if (state.Entries().empty()) {
+		std::cout << "No tracked applications to update\n";
+		return 0;
+	}
+	for (const auto& installed : state.Entries()) {
+		const umami::CatalogEntry* entry = catalog.Find(installed.first);
+		if (entry == nullptr) {
+			logger.Error("installed application '" + installed.first + "' is no longer in the catalog");
+			continue;
+		}
+		int result = InstallApplication(*entry, "", paths, state, runner, logger, commandLine.assumeYes, true);
+		if (result != 0)
+			return result;
+	}
+	return 0;
 }
 //---------------------------------------------------------------------------------------------------------------------------------//

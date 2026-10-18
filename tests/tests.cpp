@@ -1,6 +1,7 @@
 #include "Catalog.h"
 #include "CatalogRefresh.h"
 #include "InstalledState.h"
+#include "PackageManager.h"
 #include "Paths.h"
 #include "ProcessRunner.h"
 
@@ -183,6 +184,79 @@ void TestDownloadedCatalogInstallation() {
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
 
+void TestReleaseAndPackageParsing() {
+	std::filesystem::path directory = std::filesystem::temp_directory_path()
+		/ ("umami-package-tests-" + std::to_string(static_cast<long long>(getpid())));
+	std::error_code status;
+	std::filesystem::create_directories(directory, status);
+	Check(!status, "package test directory should be created");
+	std::filesystem::path releasePath = directory / "release.json";
+	const std::string releaseJson = R"({
+  "tag_name": "v1.2.3",
+  "assets": [
+    {"name":"example-1.2.3-x86_gcc2.hpkg","browser_download_url":"https://example.invalid/gcc2"},
+    {"name":"example-1.2.3-x86_64.hpkg","browser_download_url":"https://example.invalid/x64"}
+  ]
+})";
+	Check(WriteText(releasePath, releaseJson), "release fixture should be written");
+	umami::CatalogEntry entry;
+	entry.id = "example";
+	entry.assetPattern = "^example-.*-{arch}\\.hpkg$";
+	umami::ReleaseInfo release;
+	std::string error;
+	Check(umami::ParseReleaseFile(releasePath, entry, "x86_64", false, release, error),
+		"matching release asset should be parsed: " + error);
+	Check(release.tag == "v1.2.3", "release tag should be parsed");
+	Check(release.asset.name == "example-1.2.3-x86_64.hpkg", "matching architecture should be selected");
+	Check(!umami::ParseReleaseFile(releasePath, entry, "arm64", false, release, error),
+		"missing architecture should be rejected");
+
+	umami::PackageDetails details;
+	Check(umami::ParsePackageInfo("name: example\nversion: 1.2.3-1\narchitecture: x86_64\n",
+		details, error), "package metadata should be parsed: " + error);
+	Check(details.name == "example", "package name should be parsed");
+	Check(details.version == "1.2.3-1", "package version should be parsed");
+	Check(details.architecture == "x86_64", "package architecture should be parsed");
+	Check(!umami::ParsePackageInfo("name: incomplete\n", details, error),
+		"incomplete package metadata should be rejected");
+
+	std::filesystem::remove_all(directory, status);
+	Check(!status, "package test directory should be removable");
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
+void TestStateWriting() {
+	std::filesystem::path directory = std::filesystem::temp_directory_path()
+		/ ("umami-state-tests-" + std::to_string(static_cast<long long>(getpid())));
+	std::error_code status;
+	std::filesystem::create_directories(directory, status);
+	Check(!status, "state test directory should be created");
+	std::filesystem::path statePath = directory / "installed.json";
+	umami::InstalledEntry entry;
+	entry.packageName = "example";
+	entry.packageVersion = "1.2.3-1";
+	entry.releaseTag = "v1.2.3";
+	entry.asset = "example-1.2.3-1-x86_64.hpkg";
+	entry.sha256 = "0123456789abcdef";
+	entry.scope = "user";
+	entry.installedAt = "2026-10-18T00:00:00Z";
+	umami::InstalledState state;
+	state.Set("example", entry);
+	std::string error;
+	Check(state.Save(statePath, error), "installed state should save: " + error);
+	umami::InstalledState loaded;
+	Check(loaded.Load(statePath, error), "saved state should reload: " + error);
+	Check(loaded.Find("example") != nullptr, "saved state entry should be present");
+	Check(loaded.Remove("example"), "saved state entry should be removable");
+	Check(loaded.Save(statePath, error), "empty state should save: " + error);
+	Check(loaded.Load(statePath, error), "empty state should reload: " + error);
+	Check(loaded.Entries().empty(), "reloaded state should be empty");
+
+	std::filesystem::remove_all(directory, status);
+	Check(!status, "state test directory should be removable");
+}
+//---------------------------------------------------------------------------------------------------------------------------------//
+
 }
 
 int main(int argumentCount, char** arguments) {
@@ -195,6 +269,8 @@ int main(int argumentCount, char** arguments) {
 	TestPaths();
 	TestCatalogAndState();
 	TestDownloadedCatalogInstallation();
+	TestReleaseAndPackageParsing();
+	TestStateWriting();
 	if (sFailures != 0) {
 		std::cerr << sFailures << " test(s) failed\n";
 		return 1;
