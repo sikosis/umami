@@ -60,7 +60,10 @@ std::string SerialiseRecipe(const CatalogEntry& app) {
 		<< "    \"name\": \"" << EscapeJson(app.name) << "\",\n"
 		<< "    \"description\": \"" << EscapeJson(app.description) << "\",\n"
 		<< "    \"provider\": \"github\",\n"
-		<< "    \"repo\": \"" << EscapeJson(app.repository) << "\",\n"
+		<< "    \"repo\": \"" << EscapeJson(app.repository) << "\",\n";
+	if (!app.releaseTagPattern.empty())
+		output << "    \"release_tag_pattern\": \"" << EscapeJson(app.releaseTagPattern) << "\",\n";
+	output
 		<< "    \"asset_pattern\": \"" << EscapeJson(app.assetPattern) << "\",\n"
 		<< "    \"package_name\": \"" << EscapeJson(app.packageName) << "\",\n"
 		<< "    \"channel\": \"" << EscapeJson(app.channel) << "\"\n"
@@ -167,6 +170,7 @@ bool ValidateApp(const JsonValue& app, CatalogEntry& entry, std::string& error) 
 		|| !ReadRequiredString(app, "description", entry.description, error)
 		|| !ReadRequiredString(app, "provider", entry.provider, error)
 		|| !ReadRequiredString(app, "repo", entry.repository, error)
+		|| !ReadOptionalString(app, "release_tag_pattern", entry.releaseTagPattern, error)
 		|| !ReadRequiredString(app, "asset_pattern", entry.assetPattern, error)
 		|| !ReadRequiredString(app, "package_name", entry.packageName, error)
 		|| !ReadRequiredString(app, "channel", entry.channel, error)
@@ -183,6 +187,15 @@ bool ValidateApp(const JsonValue& app, CatalogEntry& entry, std::string& error) 
 	if (!std::regex_match(entry.repository, std::regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))) {
 		error = "recipe repo must use the owner/repository form";
 		return false;
+	}
+	if (!entry.releaseTagPattern.empty()) {
+		try {
+			std::regex matcher(entry.releaseTagPattern);
+			(void)matcher;
+		} catch (const std::regex_error&) {
+			error = "recipe release_tag_pattern is not a valid regular expression";
+			return false;
+		}
 	}
 	if (!std::regex_match(entry.packageName, std::regex("^[A-Za-z0-9][A-Za-z0-9+_.-]*$"))) {
 		error = "recipe package_name contains unsupported characters";

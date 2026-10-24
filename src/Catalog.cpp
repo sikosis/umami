@@ -47,6 +47,7 @@ bool Catalog::Load(const std::filesystem::path& path, std::string& error) {
 				|| !ReadRequiredString(app, "description", entry.description, error)
 				|| !ReadRequiredString(app, "provider", entry.provider, error)
 				|| !ReadRequiredString(app, "repo", entry.repository, error)
+				|| !ReadOptionalString(app, "release_tag_pattern", entry.releaseTagPattern, error)
 				|| !ReadRequiredString(app, "asset_pattern", entry.assetPattern, error)
 				|| !ReadRequiredString(app, "package_name", entry.packageName, error)
 				|| !ReadRequiredString(app, "channel", entry.channel, error)
@@ -65,6 +66,15 @@ bool Catalog::Load(const std::filesystem::path& path, std::string& error) {
 			if (!std::regex_match(entry.repository, std::regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))) {
 				error = "catalog app '" + entry.id + "': repo must use the owner/repository form";
 				break;
+			}
+			if (!entry.releaseTagPattern.empty()) {
+				try {
+					std::regex compiledPattern(entry.releaseTagPattern);
+					(void)compiledPattern;
+				} catch (const std::regex_error&) {
+					error = "catalog app '" + entry.id + "': release_tag_pattern is not a valid regular expression";
+					break;
+				}
 			}
 			if (!std::regex_match(entry.packageName, std::regex("^[A-Za-z0-9][A-Za-z0-9+_.-]*$"))) {
 				error = "catalog app '" + entry.id + "': package_name contains unsupported characters";

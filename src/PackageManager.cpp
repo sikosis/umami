@@ -66,27 +66,40 @@ bool RunCurlToFile(const std::string& url, const std::filesystem::path& destinat
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
 
-const JsonValue* SelectReleaseObject(const JsonValue& root, bool findPrerelease, std::string& error) {
-	if (!findPrerelease) {
-		if (root.ValueType() != JsonValue::Type::Object)
-			error = "GitHub release response must be an object";
-		return error.empty() ? &root : nullptr;
-	}
+const JsonValue* SelectReleaseObject(const JsonValue& root, const CatalogEntry& entry,
+	bool findPrerelease, std::string& error) {
+	if (root.ValueType() == JsonValue::Type::Object)
+		return &root;
 	if (root.ValueType() != JsonValue::Type::Array) {
-		error = "GitHub prerelease response must be an array";
+		error = "GitHub releases response must be an array";
 		return nullptr;
 	}
+	std::regex tagMatcher;
+	if (!entry.releaseTagPattern.empty())
+		tagMatcher = std::regex(entry.releaseTagPattern);
 	for (const JsonValue& candidate : root.ArrayValue()) {
 		if (candidate.ValueType() != JsonValue::Type::Object)
 			continue;
 		const JsonValue* prerelease = candidate.Find("prerelease");
 		const JsonValue* draft = candidate.Find("draft");
-		if (prerelease != nullptr && prerelease->ValueType() == JsonValue::Type::Boolean
-			&& prerelease->BooleanValue() && (draft == nullptr || draft->ValueType() != JsonValue::Type::Boolean
-				|| !draft->BooleanValue()))
-			return &candidate;
+		bool isPrerelease = prerelease != nullptr && prerelease->ValueType() == JsonValue::Type::Boolean
+			&& prerelease->BooleanValue();
+		bool isDraft = draft != nullptr && draft->ValueType() == JsonValue::Type::Boolean
+			&& draft->BooleanValue();
+		if (isDraft || isPrerelease != findPrerelease)
+			continue;
+		if (!entry.releaseTagPattern.empty()) {
+			const JsonValue* tag = candidate.Find("tag_name");
+			if (tag == nullptr || tag->ValueType() != JsonValue::Type::String
+				|| !std::regex_match(tag->StringValue(), tagMatcher))
+				continue;
+		}
+		return &candidate;
 	}
-	error = "repository has no published prerelease";
+	if (!entry.releaseTagPattern.empty())
+		error = "repository has no published release matching tag pattern '" + entry.releaseTagPattern + "'";
+	else
+		error = "repository has no published prerelease";
 	return nullptr;
 }
 //---------------------------------------------------------------------------------------------------------------------------------//
@@ -129,7 +142,7 @@ bool ParseReleaseFile(const std::filesystem::path& path, const CatalogEntry& ent
 	JsonValue root;
 	if (!LoadJsonFile(path, root, error))
 		return false;
-	const JsonValue* releaseObject = SelectReleaseObject(root, findPrerelease, error);
+	const JsonValue* releaseObject = SelectReleaseObject(root, entry, findPrerelease, error);
 	if (releaseObject == nullptr)
 		return false;
 	if (!ReadRequiredString(*releaseObject, "tag_name", release.tag, error)) {
@@ -170,8 +183,8 @@ bool ResolveRelease(const CatalogEntry& entry, const std::string& requestedTag,
 	std::string url = "https://api.github.com/repos/" + entry.repository + "/releases";
 	if (!requestedTag.empty())
 		url += "/tags/" + EncodeUrlComponent(requestedTag);
-	else if (findPrerelease)
-		url += "?per_page=30";
+	else if (findPrerelease || !entry.releaseTagPattern.empty())
+		url += "?per_page=100";
 	else
 		url += "/latest";
 	std::filesystem::path responseFile = cacheDirectory / (entry.id + "-release.json");

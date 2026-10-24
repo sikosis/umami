@@ -396,8 +396,10 @@ int ShowApplicationInfo(const umami::Catalog& catalog, const umami::InstalledSta
 		<< "Description:   " << entry->description << '\n'
 		<< "Provider:      " << entry->provider << '\n'
 		<< "Repository:    " << entry->repository << '\n'
-		<< "Package:       " << entry->packageName << '\n'
-		<< "Channel:       " << entry->channel << '\n';
+		<< "Package:       " << entry->packageName << '\n';
+	if (!entry->releaseTagPattern.empty())
+		std::cout << "Release tags:  " << entry->releaseTagPattern << '\n';
+	std::cout << "Channel:       " << entry->channel << '\n';
 	const umami::InstalledEntry* installed = state.Find(entry->id);
 	if (installed == nullptr) {
 		std::cout << "Tracked:       no\n";

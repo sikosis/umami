@@ -76,6 +76,7 @@ There are two JSON files: a read-only catalog that lists what can be installed, 
       "description": "A sample Haiku application",
       "provider": "github",
       "repo": "someuser/exampleapp",
+      "release_tag_pattern": "^exampleapp-v",
       "asset_pattern": "^exampleapp-.*-{arch}\\.hpkg$",
       "package_name": "exampleapp",
       "channel": "stable",
@@ -90,6 +91,7 @@ There are two JSON files: a read-only catalog that lists what can be installed, 
 | `id` | Short unique name used on the command line |
 | `provider` | `github`, `gitlab`, `gitea`, or `url` for a direct link |
 | `repo` | Owner and repository on the provider |
+| `release_tag_pattern` | Optional regular expression used to select this product's releases from a shared repository such as the Pantry |
 | `asset_pattern` | Regular expression for the release file; `{arch}` expands to the machine's architecture |
 | `package_name` | The name Haiku knows the package by, used for uninstall and verification |
 | `channel` | `stable` (latest non-prerelease) or `prerelease` |
@@ -157,7 +159,7 @@ The CLI is a thin layer over the core library. Every command that changes the sy
 **Install**
 
 1. Look up the catalog entry and detect the architecture with `getarch`.
-2. Ask the provider for the release (latest stable, or the requested tag).
+2. Ask the provider for the release (latest stable, an explicitly requested tag, or the newest release matching `release_tag_pattern`).
 3. Pick the asset whose name matches `asset_pattern` with `{arch}` filled in. If none matches, stop and list the architectures that are available.
 4. Download to the cache directory (`~/config/cache/umami`) under a temporary name, then rename on completion.
 5. If a checksum asset exists, download it and compare SHA-256. A mismatch deletes the file and exits with code 4.
@@ -259,6 +261,7 @@ The biggest practical risk is supply: a catalog entry only works if its author p
 **Open questions**
 
 - [x] Store source recipes in `sikosis/umami-cookbook`; generate `catalog.json` there and fetch it with `umami refresh`.
+- [x] Store release packages without public source in `sikosis/umami-pantry`; select each product with a namespaced release tag pattern.
 - [ ] Per-user installs only, or also `--system` from the start?
 - [ ] Libraries for networking and JSON: shell out to `curl` and use nlohmann/json, or use Haiku's `BHttpRequest` and `BJson`?
 - [ ] Does Haiku replace an older package of the same name cleanly when a newer local file is installed, or does `update` need to uninstall first? Test on the target machine.

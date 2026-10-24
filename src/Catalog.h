@@ -13,6 +13,7 @@ struct CatalogEntry {
 	std::string description;
 	std::string provider;
 	std::string repository;
+	std::string releaseTagPattern;
 	std::string assetPattern;
 	std::string packageName;
 	std::string channel;
