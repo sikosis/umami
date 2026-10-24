@@ -2,7 +2,7 @@
 
 `umami` is a small C++17 command-line package installer for Haiku. It will install, update and remove applications published as `.hpkg` release assets from a user-controlled catalog. Haiku's own `pkgman` remains responsible for package activation, dependency resolution and removal.
 
-The project is currently at **v0.11**. It can refresh and list the shared cookbook, generate and publish reviewable recipe proposals, resolve architecture-specific packages from individual repositories or the shared Pantry, verify package metadata, install or update packages through `pkgman`, remove tracked packages, and persist installed state atomically.
+The project is currently at **v0.12**. It can refresh and list the shared cookbook, generate and publish reviewable recipe proposals, resolve architecture-specific packages from individual repositories or the shared Pantry, verify package metadata, install or update packages through `pkgman`, remove tracked packages, and persist installed state atomically.
 
 ## Build
 
@@ -84,20 +84,20 @@ Publishing asks for a fine-grained GitHub token with **Contents: read and write*
 
 The [umami Pantry](https://github.com/sikosis/umami-pantry) stores published `.hpkg` files for products whose source is not hosted online. The cookbook continues to store only their recipes and generated catalogue metadata.
 
-Use one GitHub release per product version. Namespace its tag as `<id>-v<version>` and attach the package plus its checksum, for example:
+Use one GitHub release per product version. Namespace its tag as `v<version>-<id>` and attach the package plus its optional checksum, for example:
 
 ```text
-Tag: ichi-v1.2
-ichi-1.2-1-x86_64.hpkg
-ichi-1.2-1-x86_64.hpkg.sha256
+Tag: v1.0-getback
+getback-1.0.0-1-x86_64.hpkg
+getback-1.0.0-1-x86_64.hpkg.sha256
 ```
 
 The matching recipe points to `sikosis/umami-pantry` and selects only that product's releases:
 
 ```json
 "repo": "sikosis/umami-pantry",
-"release_tag_pattern": "^ichi-v",
-"asset_pattern": "^ichi-.*-{arch}\\.hpkg$"
+"release_tag_pattern": "^v[0-9].*-getback$",
+"asset_pattern": "^getback-.*-{arch}\\.hpkg$"
 ```
 
 `release_tag_pattern` is optional. Recipes without it retain the normal one-repository-per-product behaviour.

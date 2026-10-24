@@ -3,7 +3,7 @@
 
 namespace umami {
 
-constexpr const char* kVersion = "0.11";
+constexpr const char* kVersion = "0.12";
 
 }
 

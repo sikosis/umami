@@ -32,6 +32,17 @@
       "channel": "stable"
     },
     {
+      "id": "getback",
+      "name": "GetBack",
+      "description": "GetBack for Haiku.",
+      "provider": "github",
+      "repo": "sikosis/umami-pantry",
+      "release_tag_pattern": "^v[0-9].*-getback$",
+      "asset_pattern": "^getback-.*-{arch}\\.hpkg$",
+      "package_name": "getback",
+      "channel": "stable"
+    },
+    {
       "id": "ichi",
       "name": "Ichi",
       "description": "A terminal-based one-card game.",

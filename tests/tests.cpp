@@ -94,7 +94,7 @@ void TestCatalogAndState() {
     "description": "Example description",
     "provider": "github",
     "repo": "someone/exampleapp",
-    "release_tag_pattern": "^exampleapp-v",
+    "release_tag_pattern": "^v[0-9].*-exampleapp$",
     "asset_pattern": "^example-.*-{arch}\\.hpkg$",
     "package_name": "exampleapp",
     "channel": "stable",
@@ -109,7 +109,7 @@ void TestCatalogAndState() {
 	Check(catalogEntry != nullptr, "catalog entry should be found by id");
 	if (catalogEntry != nullptr) {
 		Check(catalogEntry->packageName == "exampleapp", "package name should be parsed");
-		Check(catalogEntry->releaseTagPattern == "^exampleapp-v", "release tag pattern should be parsed");
+		Check(catalogEntry->releaseTagPattern == "^v[0-9].*-exampleapp$", "release tag pattern should be parsed");
 	}
 
 	std::filesystem::path statePath = directory / "installed.json";
@@ -225,26 +225,26 @@ void TestReleaseAndPackageParsing() {
     "assets": [{"name":"other-9.0-x86_64.hpkg","browser_download_url":"https://example.invalid/other"}]
   },
   {
-    "tag_name": "example-v2.0-beta1",
+    "tag_name": "v2.0-beta1-example",
     "draft": false,
     "prerelease": true,
     "assets": [{"name":"example-2.0-beta1-x86_64.hpkg","browser_download_url":"https://example.invalid/beta"}]
   },
   {
-    "tag_name": "example-v1.4",
+    "tag_name": "v1.4-example",
     "draft": false,
     "prerelease": false,
     "assets": [{"name":"example-1.4-x86_64.hpkg","browser_download_url":"https://example.invalid/stable"}]
   }
 ])";
 	Check(WriteText(releasePath, pantryReleasesJson), "pantry release fixture should be written");
-	entry.releaseTagPattern = "^example-v";
+	entry.releaseTagPattern = "^v[0-9].*-example$";
 	Check(umami::ParseReleaseFile(releasePath, entry, "x86_64", false, release, error),
 		"matching stable pantry release should be parsed: " + error);
-	Check(release.tag == "example-v1.4", "stable pantry release should match the product namespace");
+	Check(release.tag == "v1.4-example", "stable pantry release should match the product namespace");
 	Check(umami::ParseReleaseFile(releasePath, entry, "x86_64", true, release, error),
 		"matching prerelease pantry release should be parsed: " + error);
-	Check(release.tag == "example-v2.0-beta1", "prerelease pantry release should match the product namespace");
+	Check(release.tag == "v2.0-beta1-example", "prerelease pantry release should match the product namespace");
 
 	umami::PackageDetails details;
 	Check(umami::ParsePackageInfo("package-attributes:\n\tname: example\n\tarchitecture: x86_64\n\tversion: 1.2.3-1\n",
@@ -308,7 +308,7 @@ void TestRecipeLoading() {
     "description": "An example Haiku application.",
     "provider": "github",
     "repo": "sikosis/umami-pantry",
-    "release_tag_pattern": "^example-v",
+    "release_tag_pattern": "^v[0-9].*-example$",
     "asset_pattern": "^example-.*-{arch}\\.hpkg$",
     "package_name": "example",
     "channel": "stable"
@@ -320,7 +320,7 @@ void TestRecipeLoading() {
 	Check(umami::LoadRecipe(recipePath, proposal, error), "valid recipe should load: " + error);
 	Check(proposal.app.id == "example", "recipe id should be parsed");
 	Check(proposal.app.repository == "sikosis/umami-pantry", "recipe repository should be parsed");
-	Check(proposal.app.releaseTagPattern == "^example-v", "recipe release tag pattern should be parsed");
+	Check(proposal.app.releaseTagPattern == "^v[0-9].*-example$", "recipe release tag pattern should be parsed");
 	Check(proposal.contents == recipeJson, "reviewed recipe contents should be preserved exactly");
 
 	Check(WriteText(recipePath, "{\"version\":1,\"app\":{\"id\":\"broken\"}}"),
