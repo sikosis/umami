@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="theme-color" content="#17130f">
+	<title>Umami Kitchen</title>
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<header class="masthead">
+		<div>
+			<p class="eyebrow">Cookbook control room</p>
+			<h1>Umami <span>Kitchen</span></h1>
+			<p class="lede">One counter for every recipe, release and package in the Pantry.</p>
+		</div>
+		<div class="header-actions">
+			<button id="credentialsButton" class="button button-secondary">GitHub access</button>
+			<button id="refreshButton" class="button button-primary">Refresh inventory</button>
+		</div>
+	</header>
+
+	<main>
+		<section id="notice" class="notice hidden" aria-live="polite"></section>
+
+		<section class="summary" aria-label="Inventory summary">
+			<article><span id="recipeCount">—</span><p>Recipes</p></article>
+			<article><span id="readyCount">—</span><p>Installable</p></article>
+			<article><span id="attentionCount">—</span><p>Need attention</p></article>
+			<article><span id="orphanCount">—</span><p>Uncatalogued</p></article>
+		</section>
+
+		<section class="workspace">
+			<div class="toolbar">
+				<div>
+					<p class="eyebrow">Live inventory</p>
+					<h2>What’s on the shelf</h2>
+				</div>
+				<div class="filters">
+					<label class="search"><span>Search</span><input id="searchInput" type="search" placeholder="App, package or repository"></label>
+					<label><span>Show</span><select id="statusFilter"><option value="all">Everything</option><option value="ready">Installable</option><option value="attention">Needs attention</option><option value="orphan">Missing recipe</option></select></label>
+					<button id="newRecipeButton" class="button button-quiet">+ New recipe</button>
+				</div>
+			</div>
+
+			<div id="loading" class="loading"><span></span><p>Checking the Cookbook and Pantry…</p></div>
+			<div id="inventory" class="inventory" aria-live="polite"></div>
+		</section>
+	</main>
+
+	<dialog id="recipeDialog">
+		<form id="recipeForm" method="dialog">
+			<div class="dialog-heading">
+				<div><p class="eyebrow">Recipe card</p><h2 id="recipeDialogTitle">New recipe</h2></div>
+				<button type="button" class="icon-button" data-close="recipeDialog" aria-label="Close">×</button>
+			</div>
+			<div class="form-grid">
+				<label>ID<input name="id" required pattern="[a-z0-9][a-z0-9._-]*"></label>
+				<label>Name<input name="name" required></label>
+				<label class="wide">Description<textarea name="description" rows="2" required></textarea></label>
+				<label>Repository<input name="repo" required placeholder="sikosis/umami-pantry"></label>
+				<label>Package name<input name="package_name" required></label>
+				<label>Release tag pattern<input name="release_tag_pattern" placeholder="^v[0-9].*-app$"></label>
+				<label>Channel<select name="channel"><option value="stable">Stable</option><option value="prerelease">Prerelease</option></select></label>
+				<label class="wide">Asset pattern<input name="asset_pattern" required placeholder="^app-.*-{arch}\.hpkg$"></label>
+				<label class="wide">Checksum asset <small>optional</small><input name="checksum_asset" placeholder="{asset}.sha256"></label>
+			</div>
+			<details><summary>Review generated JSON</summary><pre id="recipePreview"></pre></details>
+			<div class="dialog-actions">
+				<button type="button" id="downloadRecipeButton" class="button button-secondary">Download JSON</button>
+				<button type="button" id="deleteRecipeButton" class="button button-danger hidden">Delete recipe</button>
+				<span class="spacer"></span>
+				<button type="button" data-close="recipeDialog" class="button button-quiet">Cancel</button>
+				<button type="submit" class="button button-primary">Commit to Cookbook</button>
+			</div>
+		</form>
+	</dialog>
+
+	<dialog id="credentialsDialog">
+		<form id="credentialsForm" method="dialog">
+			<div class="dialog-heading">
+				<div><p class="eyebrow">Session credentials</p><h2>GitHub access</h2></div>
+				<button type="button" class="icon-button" data-close="credentialsDialog" aria-label="Close">×</button>
+			</div>
+			<p>Use a fine-grained token restricted to <strong>sikosis/umami-cookbook</strong> with Contents read/write access. It remains only in this browser tab’s memory and is cleared when the tab closes.</p>
+			<label>Token<input id="tokenInput" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+			<div class="dialog-actions">
+				<button type="button" id="clearTokenButton" class="button button-secondary">Clear</button>
+				<span class="spacer"></span>
+				<button type="submit" class="button button-primary">Use for this session</button>
+			</div>
+		</form>
+	</dialog>
+
+	<footer><span>UMAMI KITCHEN</span><a href="https://github.com/sikosis/umami-cookbook" target="_blank" rel="noreferrer">Cookbook</a><a href="https://github.com/sikosis/umami-pantry" target="_blank" rel="noreferrer">Pantry</a></footer>
+	<script src="app.js"></script>
+</body>
+</html>
